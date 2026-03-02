@@ -1,3 +1,4 @@
+
 #import flask and its components
 from flask import *
 
@@ -6,7 +7,6 @@ import os
 
 #import pymysql module
 import pymysql
-
 
 #create a flask app and give it a name
 app = Flask(__name__)
@@ -135,86 +135,71 @@ import base64
 from requests.auth import HTTPBasicAuth
 
 
+#import pymysql module
+import pymysql
+
+
 @app.route('/api/mpesa_payment', methods=['POST'])
 def mpesa_payment():
     if request.method == 'POST':
-        amount = request.form.get('amount')
-        phone = request.form.get('phone')
-        
-        # Basic validation
-        if not amount or not phone:
-            return jsonify({"error": "Amount and phone are required"}), 400
-        try:
-            amount = float(amount)
-            if amount <= 0:
-                raise ValueError
-        except ValueError:
-            return jsonify({"error": "Invalid amount"}), 400
-        
-        # Format phone (assume Kenyan numbers)
-        if phone.startswith('0'):
-            phone = '254' + phone[1:]
-        elif not phone.startswith('254'):
-            return jsonify({"error": "Invalid phone number"}), 400
-        
-        # Use environment variables for credentials (recommended for production)
-        consumer_key = os.getenv("MPESA_CONSUMER_KEY", "GTWADFxIpUfDoNikNGqq1C3023evM6UH")
-        consumer_secret = os.getenv("MPESA_CONSUMER_SECRET", "amFbAoUByPV2rM5A")
-        passkey = os.getenv("MPESA_PASSKEY", "bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919")
-        business_short_code = "174379"
-        
+        amount = request.form['amount']
+        phone = request.form['phone']
         # GENERATING THE ACCESS TOKEN
-        api_URL = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"
-        try:
-            r = requests.get(api_URL, auth=HTTPBasicAuth(consumer_key, consumer_secret), timeout=10)
-            r.raise_for_status()
-            data = r.json()
-            access_token = "Bearer " + data['access_token']
-        except requests.RequestException as e:
-            return jsonify({"error": "Failed to generate access token", "details": str(e)}), 500
-        
-        # GETTING THE PASSWORD
-        timestamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
-        data_str = business_short_code + passkey + timestamp
-        encoded = base64.b64encode(data_str.encode())
+        # create an account on safaricom daraja
+        consumer_key = "GTWADFxIpUfDoNikNGqq1C3023evM6UH"
+        consumer_secret = "amFbAoUByPV2rM5A"
+ 
+        api_URL = "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials"  # AUTH URL
+        r = requests.get(api_URL, auth=HTTPBasicAuth(consumer_key, consumer_secret))
+ 
+        data = r.json()
+        access_token = "Bearer" + ' ' + data['access_token']
+ 
+        #  GETTING THE PASSWORD
+        timestamp = datetime.datetime.today().strftime('%Y%m%d%H%M%S')
+        passkey = 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919'
+        business_short_code = "174379"
+        data = business_short_code + passkey + timestamp
+        encoded = base64.b64encode(data.encode())
         password = encoded.decode('utf-8')
-        
+ 
         # BODY OR PAYLOAD
         payload = {
-            "BusinessShortCode": business_short_code,
-            "Password": password,
-            "Timestamp": timestamp,
+            "BusinessShortCode": "174379",
+            "Password": "{}".format(password),
+            "Timestamp": "{}".format(timestamp),
             "TransactionType": "CustomerPayBillOnline",
-            "Amount": str(int(amount)),  # Use dynamic amount, convert to int for API
-            "PartyA": phone,
-            "PartyB": business_short_code,
+            "Amount": "1",  # use 1 when testing
+            "PartyA": phone,  # change to your number
+            "PartyB": "174379",
             "PhoneNumber": phone,
             "CallBackURL": "https://modcom.co.ke/api/confirmation.php",
-            "AccountReference": "SokoGarden",
-            "TransactionDesc": "Payment for products"
+            "AccountReference": "account",
+            "TransactionDesc": "account"
         }
-        
-        # POPULATING THE HTTP HEADER
+ 
+        # POPULAING THE HTTP HEADER
         headers = {
             "Authorization": access_token,
             "Content-Type": "application/json"
         }
-        
-        url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
-        try:
-            response = requests.post(url, json=payload, headers=headers, timeout=10)
-            response.raise_for_status()
-            response_data = response.json()
-            # Log to database (assuming a payments table with columns: phone, amount, timestamp, status)
-            connection = pymysql.connect(host="localhost", user="root", password="", database="sokogardenonline")
-            cursor = connection.cursor()
-            sql = "INSERT INTO payments (phone, amount, timestamp, status) VALUES (%s, %s, %s, %s)"
-            cursor.execute(sql, (phone, amount, timestamp, "initiated"))
-            connection.commit()
-            connection.close()
-            return jsonify({"message": "Please complete payment on your phone. We will deliver shortly.", "response": response_data})
-        except requests.RequestException as e:
-            return jsonify({"error": "Payment request failed", "details": str(e)}), 500
+ 
+        url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"  # C2B URL
+ 
+        response = requests.post(url, json=payload, headers=headers)
+        print(response.text)
+        return jsonify({"message": "Please Complete Payment in Your Phone and we will deliver in minutes"})
+
+
+
+
+
+
+
+
+
+
+
 
 #run the application
 
